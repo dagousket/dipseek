@@ -22,7 +22,7 @@ option_list = list(
   make_option(c("-n", "--testrun"), type="logical", default="FALSE", 
               help="If set as TRUE, will sample 10 peaks for test run [default= %default]", metavar="logical"),
   make_option(c("-c", "--chromosome"), type="character", default="*", 
-              help="Regex of the chromosome you want to keep for the analysis", metavar="character")
+              help="Regex of the chromosome you want to keep for the analysis [default= %default]", metavar="character")
 ); 
 
 opt_parser = OptionParser(option_list=option_list);
@@ -30,7 +30,7 @@ opt = parse_args(opt_parser);
 
 if (is.null(opt$file)){
   print_help(opt_parser)
-  stop("At least one argument must be supplied (input file).n", call.=FALSE)
+  stop("Input file not provided.", call.=FALSE)
 }
 
 
@@ -126,8 +126,9 @@ for (j in unique(peaks_init$chromosome)){
     mydf <- as.data.frame(df_init[which(df_init$peak == mypeak),])
     df <- expand_bedgraph(mydf)
     if (length(df$cov) > 500){
-      suppressWarnings(best_span <- span_finder(df))
-      if (best_span$span %in% seq(0.05,1,0.05)){
+      suppressWarnings(best_span <- span_finder(df)[1,])
+      # check if loess as outputed a correct span (we pick the first span value if multiple are outputed)
+      if (best_span$span[1] %in% seq(0.05,1,0.05)){
         df_out <- peakvalley_finder_updated(df, best_span$span, opt$read_length)
         if (nrow(df_out) != 0) {
           df_out <- df_out %>% mutate(peak = mypeak)
