@@ -38,6 +38,24 @@ if (is.null(opt$file)){
 # Functions #
 #############
 
+# Make a function to split bed region larger than 30kb into smaller 10kb slidding windows
+split_peaks <- function(df_in){
+  large_peaks <- df_in %>% group_by(peak) %>% summarise(start = min(start), end = max(end)) %>% filter(end - start >= 30000) %>% select(peak)
+  if (length(large_peaks$peak) == 0){return(df_in)
+  } else {
+    large_df <- c()
+    for (p in seq(1,length(large_peaks$peak))){
+      df <- df_in %>% filter(peak == large_peaks$peak[p])
+      df$split <- (df$end - min(df$start)) %/% 10000
+      df <- df %>% mutate(peak = paste0(peak,'.',split))
+      df$split <- NULL
+      large_df <- rbind(df, large_df)
+    }
+    small_df <- df_in %>% filter(!peak %in% large_peaks$peak)
+    return(rbind(small_df, large_df))
+    }
+}
+
 # Make a function to expand compress bedgraph format to single base pair format
 expand_bedgraph <- function(df){
   df_out <- c()
@@ -92,6 +110,7 @@ peakvalley_finder_updated <- function(df_in, best_span, length_read){
 
 # Load data coverage and peak list
 df_init <- fread(opt$file, header=FALSE, col.names = c('chromosome','start','end','cov','score','peak'), colClasses = c('character','integer','integer','integer','numeric','character'))
+df_init <- split_peaks(df_init)
 peaks_init <- unique(as.data.frame(df_init[,c('chromosome','peak')])) %>% filter(grepl(opt$chromosome, chromosome))
 if (opt$testrun){peaks_init <- sample_n(peaks_init, 10)}
 
@@ -102,16 +121,20 @@ for (j in unique(peaks_init$chromosome)){
   final_df <- c()
   final_peak <- c()
   for (i in seq(1,length(peaks))){
+    best_span <- data.frame("span" = NA, "standard_error" = NA, "roughness" = NA)
     mypeak = peaks[i]
     mydf <- as.data.frame(df_init[which(df_init$peak == mypeak),])
     df <- expand_bedgraph(mydf)
     if (length(df$cov) > 500){
       suppressWarnings(best_span <- span_finder(df))
-      df_out <- peakvalley_finder_updated(df, best_span$span, opt$read_length)
-      if (nrow(df_out) != 0) {
-        df_out <- df_out %>% mutate(peak = mypeak)
-        final_df <- rbind(final_df, df_out)}
-        final_peak <- rbind(final_peak, data.frame(peak = mypeak, chromosome = mydf[1,'chromosome'], span = best_span$span, stderr = best_span$standard_error, roughness = best_span$roughness))
+      if (best_span$span %in% seq(0.05,1,0.05)){
+        df_out <- peakvalley_finder_updated(df, best_span$span, opt$read_length)
+        if (nrow(df_out) != 0) {
+          df_out <- df_out %>% mutate(peak = mypeak)
+          final_df <- rbind(final_df, df_out)
+          final_peak <- rbind(final_peak, data.frame(peak = mypeak, chromosome = mydf[1,'chromosome'], span = best_span$span, stderr = best_span$standard_error, roughness = best_span$roughness))
+        }
+      } else {print(paste("peak",mypeak,"does not output a proper span value"))}
     }
   }
   write.table(final_df, file = paste0(opt$out,'.',j,'.valleys.out'), col.names = TRUE, row.names = FALSE, sep = "\t", quote = FALSE)
