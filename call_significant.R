@@ -57,7 +57,7 @@ grid.arrange(arrangeGrob(gspan1),arrangeGrob(gspan2), arrangeGrob(gspan3), layou
 
 # Run poisson test and diagnosis
 df_init <- df_init %>% drop_na() %>% mutate(lambda = (lead_covaround + lag_covaround)/2, x = round(covaround), log2fc = log2(lambda/x))
-df_init <- df_init %>% mutate(pvalue = ppois(x, lambda = lambda, lower.tail = TRUE), evalue = (pvalue /dim(df_init)[1]))
+df_init <- df_init %>% mutate(pvalue = ppois(x, lambda = lambda, lower.tail = TRUE), evalue = (pvalue * dim(df_init)[1]))
 gval1 <- ggplot(df_init, aes(x = log2fc, y = pvalue)) + geom_hex() + theme_light() + scale_y_reverse()
 gval2 <- ggplot(df_init, aes(x = pvalue)) + geom_histogram(binwidth = 0.05, color = 'white') + theme_light() + coord_cartesian(xlim = c(0,1))
 lay <- matrix(c(1,2), byrow = TRUE, nrow = 1)
