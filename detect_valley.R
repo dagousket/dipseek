@@ -40,7 +40,7 @@ if (is.null(opt$file)){
 
 # Make a function to split bed region larger than 30kb into smaller 10kb slidding windows
 split_peaks <- function(df_in){
-  large_peaks <- df_in %>% group_by(peak) %>% summarise(start = min(start), end = max(end)) %>% filter(end - start >= 30000) %>% select(peak)
+  large_peaks <- df_in %>% group_by(peak) %>% summarise(start = min(start), end = max(end)) %>% filter(end - start >= 20000) %>% select(peak)
   if (length(large_peaks$peak) == 0){return(df_in)
   } else {
     large_df <- c()
@@ -109,7 +109,7 @@ peakvalley_finder_updated <- function(df_in, best_span, length_read){
 #######
 
 # Load data coverage and peak list
-df_init <- fread(opt$file, header=FALSE, col.names = c('chromosome','start','end','cov','score','peak'), colClasses = c('character','integer','integer','integer','numeric','character'))
+df_init <- fread(opt$file, header=FALSE, col.names = c('chromosome','start','end','cov','peak'), colClasses = c('character','integer','integer','integer','character'))
 df_init <- split_peaks(df_init)
 peaks_init <- unique(as.data.frame(df_init[,c('chromosome','peak')])) %>% filter(grepl(opt$chromosome, chromosome))
 if (opt$testrun){peaks_init <- sample_n(peaks_init, 10)}
