@@ -58,12 +58,16 @@ grid.arrange(arrangeGrob(gspan1),arrangeGrob(gspan2), arrangeGrob(gspan3), layou
 # Run poisson test and diagnosis
 df_init <- df_init %>% drop_na() %>% mutate(lambda = (lead_covaround + lag_covaround)/2, x = round(covaround), log2fc = log2(lambda/x))
 df_init <- df_init %>% mutate(pvalue = ppois(x, lambda = lambda, lower.tail = TRUE), evalue = (pvalue * dim(df_init)[1]))
+df_init <- df_init %>% mutate(pvalue = as.numeric(formatC(pvalue, format = "e", digits = 2)), evalue = as.numeric(formatC(evalue, format = "e", digits = 2)))
 gval1 <- ggplot(df_init, aes(x = log2fc, y = pvalue)) + geom_hex() + theme_light() + scale_y_reverse()
-gval2 <- ggplot(df_init, aes(x = pvalue)) + geom_histogram(binwidth = 0.05, color = 'white') + theme_light() + coord_cartesian(xlim = c(0,1))
+gval2 <- ggplot(df_init, aes(x = pvalue)) + geom_histogram(binwidth = 0.05, color = 'white') + theme_light() 
+gval3 <- ggplot(df_init, aes(x = log2fc, y = log10(evalue))) + geom_hex() + theme_light() + scale_y_reverse()
+gval4 <- ggplot(df_init, aes(x = log10(evalue))) + geom_histogram(color = 'white') + theme_light() 
 lay <- matrix(c(1,2), byrow = TRUE, nrow = 1)
 grid.arrange(arrangeGrob(gval1),arrangeGrob(gval2), layout_matrix = lay)
+grid.arrange(arrangeGrob(gval3),arrangeGrob(gval4), layout_matrix = lay)
 
 # Output bed file of the retained valleys
-df_out <- df_init %>% mutate(start = index - 100, end = index + 100, score = abs(1000 - pvalue * 1000)) %>% select(chromosome, start, end, peak, score)
+df_out <- df_init %>% mutate(start = index - 100, end = index + 100, score = pvalue, qscore = evalue ) %>% select(chromosome, start, end, peak, score, qscore)
 write.table(df_out, file = opt$out, col.names = FALSE, row.names = FALSE, sep = "\t", quote = FALSE)
 dev.off()

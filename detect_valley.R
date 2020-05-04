@@ -62,7 +62,14 @@ expand_bedgraph <- function(df){
   for (i in 1:nrow(df)){
     df_out <- rbind(df_out, data.frame('chromosome' = df[i,'chromosome'], 'bp' = seq(df[i,'start'],df[i,'end']-1),'cov' = df[i,'cov'],'peak'=df[i, 'peak']))
   }
-  return(df_out)
+  if (length(df_out$cov) == max(df$end) - min(df$start)) {
+  return(df_out)} else {
+    print(paste(df[i, 'peak'],' does not expand properly, adding 0 span to fill gap'))
+    all_bp <- data.frame('bp' = seq(min(df$start) , max(df$end)-1), 'all' = TRUE, 'chromosome' = df[i,'chromosome'], 'peak'=df[i, 'peak'])
+    df_out <- df_out %>% full_join(all_bp, by = c("chromosome", "bp", "peak")) %>% select('chromosome','bp','cov','peak')
+    df_out$cov[is.na(df_out$cov)] <- 0
+    return(df_out)
+  }
 }
 
 # Make a functin to assess best smooting span value for a given peak
@@ -110,9 +117,14 @@ peakvalley_finder_updated <- function(df_in, best_span, length_read){
 
 # Load data coverage and peak list
 df_init <- fread(opt$file, header=FALSE, col.names = c('chromosome','start','end','cov','peak'), colClasses = c('character','integer','integer','integer','character'))
-df_init <- split_peaks(df_init)
-peaks_init <- unique(as.data.frame(df_init[,c('chromosome','peak')])) %>% filter(grepl(opt$chromosome, chromosome))
-if (opt$testrun){peaks_init <- sample_n(peaks_init, 10)}
+df_init <- as.data.frame(df_init) %>% filter(grepl(opt$chromosome, chromosome))
+df_init <- split_peaks(as.data.frame(df_init))
+# Select peak after splitting, as it generates new peak names for large peaks
+peaks_init <- unique(as.data.frame(df_init[,c('chromosome','peak')]))
+if (opt$testrun){
+  peaks_init <- sample_n(peaks_init, 10)
+  df_init <- df_init %>% filter(peak %in% peaks_init$peak)
+}
 
 # Run bestspan and valley finder on each peak per chromosome
 for (j in unique(peaks_init$chromosome)){ 
@@ -124,8 +136,10 @@ for (j in unique(peaks_init$chromosome)){
     best_span <- data.frame("span" = NA, "standard_error" = NA, "roughness" = NA)
     mypeak = peaks[i]
     mydf <- as.data.frame(df_init[which(df_init$peak == mypeak),])
+    df <- c()
     df <- expand_bedgraph(mydf)
-    if (length(df$cov) > 500){
+    tryCatch({
+      if (length(df$cov) > 500){
       suppressWarnings(best_span <- span_finder(df)[1,])
       # check if loess as outputed a correct span (we pick the first span value if multiple are outputed)
       if (best_span$span[1] %in% seq(0.05,1,0.05)){
@@ -137,6 +151,7 @@ for (j in unique(peaks_init$chromosome)){
         }
       } else {print(paste("peak",mypeak,"does not output a proper span value"))}
     }
+    }, error = function(e){paste("problem with ",mypeak, " when applying loess")})
   }
   write.table(final_df, file = paste0(opt$out,'.',j,'.valleys.out'), col.names = TRUE, row.names = FALSE, sep = "\t", quote = FALSE)
   write.table(final_peak, file = paste0(opt$out,'.',j,'.peaks.out'), col.names = TRUE, row.names = FALSE, sep = "\t", quote = FALSE)
